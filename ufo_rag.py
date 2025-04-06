@@ -13,6 +13,18 @@ st.set_page_config(
     layout="centered"
 )
 
+# Show dataset stats
+st.subheader("Dataset Overview")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Total Sightings", len(df))
+with col2:
+    if 'date' in df.columns:
+        st.metric("Date Range", f"{df['date'].min()} to {df['date'].max()}")
+with col3:
+    if 'state' in df.columns:
+        st.metric("Top States", df['state'].mode()[0] if len(df) > 0 else "N/A")
+
 # Initialize OpenAI client
 if 'client' not in st.session_state:
     st.session_state.client = None
@@ -155,17 +167,7 @@ if st.button("Analyze Dataset") and question:
                     use_container_width=True
                 )
             
-            # Show dataset stats
-            st.subheader("Dataset Overview")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Sightings", len(df))
-            with col2:
-                if 'date' in df.columns:
-                    st.metric("Date Range", f"{df['date'].min()} to {df['date'].max()}")
-            with col3:
-                if 'state' in df.columns:
-                    st.metric("Top States", df['state'].mode()[0] if len(df) > 0 else "N/A")
+            
 
 # Add data export option
 if df is not None:
