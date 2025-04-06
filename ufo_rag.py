@@ -31,7 +31,12 @@ with st.sidebar:
 @st.cache_data
 def load_full_dataset():
     try:
-        df = pd.read_csv("new_df.csv")
+        from pathlib import Path
+        # Get the current script's directory
+        script_dir = Path(__file__).parent
+        # Construct the full file path
+        csv_path = script_dir / 'new_df.csv'
+        df = pd.read_csv(csv_path)
         
         # Basic data validation and cleaning
         df.fillna("Unknown", inplace=True)
