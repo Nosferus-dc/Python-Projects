@@ -5,12 +5,13 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 from io import StringIO
+import matplotlib.pyplot as plt
 
-# Page setup
+# Page Header setup
 st.set_page_config(
     page_title="UFO Sightings Database Enquiry",
     page_icon="🛸",
-    layout="centered"
+    layout="wide"  # Changed to wide layout for better side-by-side charts
 )
 
 # Initialize OpenAI client
@@ -27,7 +28,7 @@ with st.sidebar:
     else:
         st.warning("Please enter API key to continue")
 
-# Data loading with full dataset processing
+# Data loading 
 @st.cache_data
 def load_full_dataset():
     try:
@@ -38,8 +39,14 @@ def load_full_dataset():
         csv_path = script_dir / 'new_df.csv'
         df = pd.read_csv(csv_path)
         
-        # Basic data validation and cleaning
+        # Fill blanks with unknowns
         df.fillna("Unknown", inplace=True)
+        
+        # Convert date to datetime
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            df['year'] = df['date'].dt.year
+            df['month'] = df['date'].dt.month_name()
         
         # Create enhanced search text
         df["search_text"] = df.apply(lambda row: 
@@ -56,12 +63,92 @@ def load_full_dataset():
 
 df = load_full_dataset()
 
-# Full dataset analysis function
+# Custom styling for charts
+def apply_chart_style(ax, title, xlabel, ylabel):
+    ax.set_title(title, fontsize=14, pad=20)
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    plt.tight_layout()
+
+# Function to display dataset statistics
+def show_dataset_statistics(df):
+    st.subheader("📊 UFO Sightings Statistics Overview")
+    
+    if df is None:
+        st.warning("No data available to display statistics")
+        return
+    
+    # Basic statistics
+    st.markdown("### 📈 Basic Statistics")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Sightings", len(df))
+    with col2:
+        if 'date' in df.columns:
+            st.metric("Date Range", f"{df['date'].min().year} to {df['date'].max().year}")
+    with col3:
+        if 'state' in df.columns:
+            st.metric("Most Sightings State", df['state'].mode()[0] if len(df) > 0 else "N/A")
+    
+    # First row of charts (side by side)
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Top states chart
+        st.markdown("### 🗺️ Sightings by State")
+        if 'state' in df.columns:
+            state_counts = df['state'].value_counts().head(10)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            state_counts.plot(kind='bar', ax=ax, color='#1f77b4')
+            apply_chart_style(ax, 'Top 10 States with Most Sightings', 'State', 'Number of Sightings')
+            st.pyplot(fig)
+    
+    with col2:
+        # Sightings over time
+        st.markdown("### 📅 Sightings Over Time")
+        if 'year' in df.columns:
+            yearly_counts = df['year'].value_counts().sort_index()
+            fig, ax = plt.subplots(figsize=(10, 6))
+            yearly_counts.plot(ax=ax, marker='o', linestyle='-', color='#2ca02c')
+            apply_chart_style(ax, 'UFO Sightings by Year', 'Year', 'Number of Sightings')
+            st.pyplot(fig)
+    
+    # Second row of charts (side by side)
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Monthly distribution
+        st.markdown("### 🌙 Monthly Distribution")
+        if 'month' in df.columns:
+            month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            monthly_counts = df['month'].value_counts().reindex(month_order, fill_value=0)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            monthly_counts.plot(kind='bar', ax=ax, color='#9467bd')
+            apply_chart_style(ax, 'UFO Sightings by Month', 'Month', 'Number of Sightings')
+            st.pyplot(fig)
+    
+    with col2:
+        # UFO shapes statistics
+        st.markdown("### 🔮 Common UFO Shapes")
+        if 'shape' in df.columns:
+            shape_counts = df['shape'].value_counts().head(10)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            shape_counts.plot(kind='barh', ax=ax, color='#ff7f0e')
+            apply_chart_style(ax, 'Top 10 Reported UFO Shapes', 'Number of Sightings', 'Shape')
+            st.pyplot(fig)
+
+# Dataset analysis function
 def analyze_full_dataset(question, df):
     if not st.session_state.client:
         return "API client not initialized", None
     
-    # Prepare the full dataset for analysis
+    # Prepare the dataset for analysis
     full_context = f"COMPLETE UFO SIGHTINGS DATASET SUMMARY:\n"
     full_context += f"Total sightings: {len(df)}\n"
     
@@ -109,7 +196,7 @@ def analyze_full_dataset(question, df):
             max_tokens=500
         )
         
-        # Also get the most relevant individual sightings
+        # Most relevant individual sightings
         if len(df) > 0:
             vectorizer = TfidfVectorizer(stop_words='english')
             tfidf = vectorizer.fit_transform(df["search_text"])
@@ -154,18 +241,12 @@ if st.button("Analyze Dataset") and question:
                     hide_index=True,
                     use_container_width=True
                 )
-            
-            # Show dataset stats
-            st.subheader("Dataset Overview")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Sightings", len(df))
-            with col2:
-                if 'date' in df.columns:
-                    st.metric("Date Range", f"{df['date'].min()} to {df['date'].max()}")
-            with col3:
-                if 'state' in df.columns:
-                    st.metric("Top States", df['state'].mode()[0] if len(df) > 0 else "N/A")
+
+st.markdown("---")  # Add a separator
+
+# Show statistics
+if df is not None:
+    show_dataset_statistics(df)
 
 # Add data export option
 if df is not None:
